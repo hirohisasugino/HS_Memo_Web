@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>メモ帖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --mist: #EEF1F3;
+  --paper: #FBFCFC;
+  --ink: #1E2933;
+  --slate: #5A6771;
+  --line: #DCE2E7;
+  --ai: #2F5D8A;
+  --ai-soft: #E3EBF3;
+  --on-ai: #FFFFFF;
+  --wakaba: #4B8A68;
+  --shu: #B4533D;
+  --serif: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+  --sans: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mist: #14191E;
+    --paper: #1A2027;
+    --ink: #DDE4EA;
+    --slate: #8A97A3;
+    --line: #29323A;
+    --ai: #86ADD6;
+    --ai-soft: #22303E;
+    --on-ai: #10202F;
+    --wakaba: #6DB08A;
+    --shu: #E08A74;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--mist);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
+::selection { background: var(--ai-soft); }
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* ---------- サイドバー ---------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 16px 8px 22px;
+}
+.side-head h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+.side-actions { display: flex; gap: 2px; }
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--slate);
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--ai-soft); color: var(--ink); }
+.icon-btn.spin svg { animation: turn 1s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+
+.side-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 16px 12px;
+}
+.side-tools input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.side-tools input::placeholder { color: var(--slate); }
+
+.note-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 8px 12px;
+  list-style: none;
+  overflow-y: auto;
+}
+.note-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.note-item:hover { background: color-mix(in srgb, var(--ai-soft) 55%, transparent); }
+.note-item.active { background: var(--ai-soft); }
+.note-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 15.5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.note-snippet {
+  color: var(--slate);
+  font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.note-snippet:empty { display: none; }
+.note-meta { color: var(--slate); font-size: 12px; }
+.note-meta .dirty { margin-left: .7em; color: var(--ai); font-weight: 500; }
+.list-empty { padding: 20px 14px; color: var(--slate); font-size: 14px; }
+
+.side-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--slate); }
+.dot[data-state="ok"] { background: var(--wakaba); }
+.dot[data-state="busy"] { background: var(--ai); }
+.dot[data-state="error"] { background: var(--shu); }
+.repo { font-weight: 500; overflow-wrap: anywhere; }
+.sub { color: var(--slate); }
+
+/* ---------- 編集エリア ---------- */
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--paper);
+}
+.pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.save-state {
+  flex: 1;
+  color: var(--slate);
+  font-size: 13px;
+}
+.save-state[data-state="dirty"] { color: var(--ai); }
+.pane-actions { display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--ai-soft); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--ai); border-color: var(--ai); color: var(--on-ai); }
+.btn.primary:hover:not(:disabled) { background: var(--ai); filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; }
+.btn.danger { color: var(--shu); }
+.back { display: none; }
+
+.pane-body { position: relative; flex: 1; min-height: 0; }
+#editor, .md#preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 40px max(24px, calc((100% - 41em) / 2)) 96px;
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 2;
+}
+#editor {
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  caret-color: var(--ai);
+}
+#editor::placeholder { color: var(--slate); opacity: .8; }
+.md#preview { overflow-y: auto; line-height: 1.95; }
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+.empty h2 { margin: 0; font-family: var(--serif); font-size: 20px; font-weight: 600; }
+.empty p { margin: 0 0 12px; max-width: 26em; color: var(--slate); }
+
+/* ---------- Markdownプレビュー ---------- */
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { font-weight: 600; line-height: 1.5; margin: 1.6em 0 .6em; }
+.md > :first-child { margin-top: 0; }
+.md h1 { font-size: 1.5em; }
+.md h2 { font-size: 1.28em; }
+.md h3 { font-size: 1.12em; }
+.md p { margin: 0 0 1.1em; }
+.md blockquote { margin: 1em 0; padding: .05em 1em; border-left: 3px solid var(--line); color: var(--slate); }
+.md code { font-family: var(--mono); font-size: .86em; padding: .1em .38em; border-radius: 5px; background: var(--ai-soft); }
+.md pre { margin: 1em 0; padding: 14px 16px; border-radius: 10px; background: var(--ai-soft); overflow-x: auto; line-height: 1.6; }
+.md pre code { padding: 0; background: none; }
+.md a { color: var(--ai); }
+.md ul, .md ol { margin: 0 0 1.1em; padding-left: 1.6em; }
+.md li.task { list-style: none; margin-left: -1.3em; }
+.md li.task input { margin: 0 .5em 0 0; }
+.md hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
+.md .muted { color: var(--slate); }
+
+/* ---------- 設定ダイアログ ---------- */
+dialog {
+  width: min(92vw, 480px);
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+}
+dialog::backdrop { background: rgba(20, 25, 30, .45); }
+dialog h2 { margin: 0 0 6px; font-family: var(--serif); font-size: 19px; font-weight: 600; }
+.hint { margin: 0 0 16px; color: var(--slate); font-size: 13.5px; }
+form label { display: block; margin-bottom: 14px; font-size: 13.5px; font-weight: 500; }
+form input {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 400;
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.howto { margin: 0 0 14px; font-size: 13.5px; }
+.howto summary { cursor: pointer; color: var(--ai); }
+.howto ol { margin: 8px 0 0; padding-left: 1.4em; color: var(--slate); }
+.howto li { margin-bottom: 4px; }
+.howto a { color: var(--ai); }
+.form-error { min-height: 1.4em; margin: 0 0 8px; color: var(--shu); font-size: 13.5px; }
+.form-actions { display: flex; align-items: center; gap: 8px; }
+.form-actions .spacer { flex: 1; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: min(90vw, 520px);
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 14px;
+  z-index: 10;
+}
+.toast[data-kind="error"] { background: var(--shu); color: #fff; }
+
+/* ---------- スマートフォン ---------- */
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .pane { display: none; }
+  body[data-view="editor"] .sidebar { display: none; }
+  body[data-view="editor"] .pane { display: flex; }
+  .back { display: inline-block; }
+  .pane-bar { padding: 8px 12px; gap: 6px; }
+  .save-state { display: none; }
+  .pane-actions { margin-left: auto; }
+  #editor, .md#preview { padding-top: 24px; font-size: 16.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn.spin svg { animation: none; }
+}
+</style>
+</head>
+<body data-view="list">
+
+<div class="app">
+  <aside class="sidebar" aria-label="メモの一覧">
+    <header class="side-head">
+      <h1>メモ帖</h1>
+      <div class="side-actions">
+        <button class="icon-btn" id="btnSync" type="button" title="GitHubから最新を取得" aria-label="GitHubと同期する">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9"/><path d="M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18.5 3.5v4h-4"/><path d="M5.5 20.5v-4h4"/></svg>
+        </button>
+        <button class="icon-btn" id="btnSettings" type="button" title="GitHubとの接続設定" aria-label="設定を開く">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="side-tools">
+      <input id="search" type="search" placeholder="メモを検索" aria-label="メモを検索">
+      <button class="btn primary" id="btnNew" type="button">新規メモ</button>
+    </div>
+    <ul class="note-list" id="list"></ul>
+    <footer class="side-foot">
+      <span class="dot" id="dot" data-state="off"></span>
+      <div>
+        <div class="repo" id="repoName"></div>
+        <div class="sub" id="syncText"></div>
+      </div>
+    </footer>
+  </aside>
+
+  <main class="pane">
+    <div class="pane-bar">
+      <button class="btn ghost back" id="btnBack" type="button">一覧へ</button>
+      <span class="save-state" id="saveState" role="status"></span>
+      <div class="pane-actions">
+        <button class="btn ghost" id="btnPreview" type="button">プレビュー</button>
+        <button class="btn ghost danger" id="btnDelete" type="button">削除</button>
+        <button class="btn primary" id="btnSave" type="button">保存</button>
+      </div>
+    </div>
+    <div class="pane-body">
+      <textarea id="editor" spellcheck="false" placeholder="1行目がタイトルになります。Markdownで書けます。" aria-label="メモの本文"></textarea>
+      <article class="md" id="preview" hidden></article>
+      <div class="empty" id="empty">
+        <h2 id="emptyTitle"></h2>
+        <p id="emptyBody"></p>
+        <button class="btn primary" id="emptyAction" type="button" hidden></button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<dialog id="settings" aria-labelledby="settingsTitle">
+  <form id="cfgForm" novalidate>
+    <h2 id="settingsTitle">GitHubとの接続</h2>
+    <p class="hint">メモは、指定したリポジトリのフォルダにMarkdownファイルとして保存されます。プライベートリポジトリをおすすめします。</p>
+    <div class="grid2">
+      <label>ユーザー名<input name="owner" autocomplete="off" placeholder="例: your-name"></label>
+      <label>リポジトリ名<input name="repo" autocomplete="off" placeholder="例: my-memos"></label>
+    </div>
+    <div class="grid2">
+      <label>ブランチ<input name="branch" autocomplete="off" placeholder="空欄ならデフォルト"></label>
+      <label>フォルダ<input name="folder" autocomplete="off" placeholder="notes"></label>
+    </div>
+    <label>アクセストークン<input name="token" type="password" autocomplete="off" placeholder="github_pat_..."></label>
+    <details class="howto">
+      <summary>トークンの作り方</summary>
+      <ol>
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Fine-grained tokenの作成ページ</a>を開く</li>
+        <li>「Repository access」で「Only select repositories」を選び、メモ用のリポジトリを1つだけ選ぶ</li>
+        <li>「Permissions」の「Contents」を「Read and write」にする</li>
+        <li>作成したトークンをここに貼り付ける</li>
+      </ol>
+      <p class="hint" style="margin-top:8px">トークンはこのブラウザの中だけに保存され、GitHub以外には送られません。空のリポジトリは、READMEなどを1つ作ってから使ってください。</p>
+    </details>
+    <p class="form-error" id="cfgError" role="alert"></p>
+    <div class="form-actions">
+      <button class="btn ghost danger" id="btnDisconnect" type="button">接続を解除</button>
+      <span class="spacer"></span>
+      <button class="btn" id="btnCfgCancel" type="button">キャンセル</button>
+      <button class="btn primary" id="btnCfgSave" type="submit">接続を確認して保存</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (s) => document.querySelector(s);
+  const KEY = { cfg: 'memo.config.v1', cache: 'memo.cache.v1', drafts: 'memo.drafts.v1' };
+
+  const readLS = (k, fallback) => {
+    try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback; } catch { return fallback; }
+  };
+  const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 容量超過などは無視 */ } };
+
+  // ---------- 状態 ----------
+  let cfg = readLS(KEY.cfg, null);          // {owner, repo, branch, folder, token}
+  const notes = new Map();                  // path -> {path, sha, saved, draft}
+  let current = null;
+  let previewing = false;
+  let saving = false;
+  let syncing = false;
+  let syncError = false;
+  let lastSync = null;
+
+  const ed = $('#editor');
+  const pv = $('#preview');
+  const dlg = $('#settings');
+
+  // ---------- 小さな道具 ----------
+  const enc = encodeURIComponent;
+  const encPath = (p) => p.split('/').map(enc).join('/');
+  const base = (p) => p.split('/').pop();
+  const join = (a, b) => (a ? `${a}/${b}` : b);
+  const pad = (n) => String(n).padStart(2, '0');
+  const isDesktop = () => (window.matchMedia ? window.matchMedia('(min-width: 761px)').matches : true);
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+  const folderOf = () => (cfg ? cfg.folder : 'notes').replace(/^\/+|\/+$/g, '');
+  const contentsUrl = (p) => `/repos/${enc(cfg.owner)}/${enc(cfg.repo)}/contents${p ? '/' + encPath(p) : ''}`;
+
+  function toB64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  }
+
+  const text = (n) => (n.draft ?? n.saved);
+  const isDirty = (n) => n.draft !== null && n.draft !== n.saved;
+
+  const stripMd = (s) => s
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+(?:\[[ xX]\]\s+)?/, '')
+    .replace(/^>\s?/, '')
+    .replace(/[*_`~]/g, '')
+    .trim();
+  function titleOf(t) {
+    const line = t.split('\n').find((l) => l.trim());
+    return (line && stripMd(line)) || '無題のメモ';
+  }
+  function snippetOf(t) {
+    return t.split('\n').filter((l) => l.trim()).slice(1, 3).map(stripMd).join(' ').slice(0, 80);
+  }
+  function stamp(d = new Date()) {
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
+  function dateOf(path) {
+    const m = base(path).match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+    if (!m) return '';
+    const year = +m[1] === new Date().getFullYear() ? '' : `${m[1]}年`;
+    return `${year}${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}`;
+  }
+
+  // ---------- 保存(ローカル) ----------
+  function persist() {
+    const cache = {};
+    const drafts = {};
+    for (const n of notes.values()) {
+      if (n.sha) cache[n.path] = { sha: n.sha, content: n.saved };
+      if (isDirty(n)) drafts[n.path] = n.draft;
+    }
+    writeLS(KEY.cache, cache);
+    writeLS(KEY.drafts, drafts);
+  }
+  const persistSoon = debounce(persist, 300);
+
+  function loadLocal() {
+    for (const [path, v] of Object.entries(readLS(KEY.cache, {}))) {
+      notes.set(path, { path, sha: v.sha, saved: v.content, draft: null });
+    }
+    for (const [path, draft] of Object.entries(readLS(KEY.drafts, {}))) {
+      const n = notes.get(path);
+      if (n) n.draft = draft === n.saved ? null : draft;
+      else notes.set(path, { path, sha: null, saved: '', draft });
+    }
+  }
+
+  // ---------- GitHub API ----------
+  function explain(status, msg) {
+    switch (status) {
+      case 401: return 'トークンが正しくないか、有効期限が切れています。設定でトークンを確認してください。';
+      case 403: return /rate limit/i.test(msg)
+        ? 'GitHubのアクセス回数の上限に達しました。しばらく待ってからもう一度お試しください。'
+        : 'この操作を行う権限がありません。トークンの「Contents」が「Read and write」になっているか確認してください。';
+      case 404: return 'リポジトリまたはファイルが見つかりません。ユーザー名とリポジトリ名、トークンが対象リポジトリを許可しているかを確認してください。';
+      default: return `GitHubでエラーが発生しました(${status}${msg ? ': ' + msg : ''})`;
+    }
+  }
+
+  async function request(c, method, path, body, opts = {}) {
+    let res;
+    try {
+      res = await fetch('https://api.github.com' + path, {
+        method,
+        cache: 'no-cache',
+        headers: {
+          Authorization: `Bearer ${c.token}`,
+          Accept: opts.raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      const err = new Error('GitHubに接続できません。ネットワークの状態を確認してください。');
+      err.status = 0;
+      throw err;
+    }
+    if (!res.ok) {
+      let msg = '';
+      try { msg = (await res.json()).message || ''; } catch { /* 本文なし */ }
+      const err = new Error(explain(res.status, msg));
+      err.status = res.status;
+      throw err;
+    }
+    if (opts.raw) return res.text();
+    return res.status === 204 ? null : res.json();
+  }
+  const api = (...a) => request(cfg, ...a);
+
+  async function remoteSha(path) {
+    try {
+      return (await api('GET', `${contentsUrl(path)}?ref=${enc(cfg.branch)}`)).sha;
+    } catch (e) {
+      if (e.status === 404) return null;
+      throw e;
+    }
+  }
+
+  async function pool(items, limit, fn) {
+    const q = [...items];
+    await Promise.all(Array.from({ length: Math.min(limit, q.length) }, async () => {
+      while (q.length) await fn(q.shift());
+    }));
+  }
+
+  // ---------- 同期(取得) ----------
+  async function pull({ quiet = false } = {}) {
+    if (!cfg || syncing) return;
+    syncing = true; syncError = false;
+    renderStatus();
+    try {
+      let list;
+      try {
+        list = await api('GET', `${contentsUrl(folderOf())}?ref=${enc(cfg.branch)}`);
+      } catch (e) {
+        if (e.status === 404) list = []; else throw e;
+      }
+      if (!Array.isArray(list)) throw new Error('指定したフォルダの場所に、同名のファイルがあります。設定のフォルダ名を変えてください。');
+
+      const files = list.filter((f) => f.type === 'file' && /\.md$/i.test(f.name));
+      const remote = new Map(files.map((f) => [f.path, f]));
+      const changed = new Set();
+
+      // GitHub側で消えたメモ
+      for (const [p, n] of [...notes]) {
+        if (!n.sha || remote.has(p)) continue;
+        if (isDirty(n)) { n.sha = null; n.saved = ''; }
+        else { notes.delete(p); changed.add(p); }
+      }
+
+      // 新規または更新されたメモだけ取得
+      const todo = files.filter((f) => {
+        const n = notes.get(f.path);
+        return !n || (n.sha !== f.sha && !isDirty(n));
+      });
+      await pool(todo, 4, async (f) => {
+        const body = await api('GET', `${contentsUrl(f.path)}?ref=${enc(cfg.branch)}`, null, { raw: true });
+        const n = notes.get(f.path);
+        if (n && isDirty(n)) return;
+        if (n) { n.sha = f.sha; n.saved = body; n.draft = null; }
+        else notes.set(f.path, { path: f.path, sha: f.sha, saved: body, draft: null });
+        changed.add(f.path);
+      });
+
+      persist();
+      lastSync = Date.now();
+
+      if (current && !notes.has(current)) { current = null; ed.value = ''; }
+      else if (current && changed.has(current)) { ed.value = text(notes.get(current)); }
+      if (!current && isDesktop()) {
+        const first = sortedNotes()[0];
+        if (first) { current = first.path; ed.value = text(first); }
+      }
+    } catch (e) {
+      syncError = true;
+      if (!quiet) toast(e.message, 'error');
+    } finally {
+      syncing = false;
+      renderAll();
+    }
+  }
+
+  // ---------- 保存(GitHubへ) ----------
+  async function saveCurrent() {
+    const n = current && notes.get(current);
+    if (!n || saving || !isDirty(n)) return;
+    if (!cfg) { toast('先にGitHubへの接続を設定してください。'); openSettings(); return; }
+    const content = text(n);
+    if (!content.trim()) { toast('内容が空のメモは保存できません。'); return; }
+
+    saving = true;
+    updateSaveState();
+    try {
+      if (!n.sha) {
+        const p = join(folderOf(), base(n.path));
+        if (p !== n.path) {
+          notes.delete(n.path);
+          if (current === n.path) current = p;
+          n.path = p;
+          notes.set(p, n);
+        }
+      }
+      const msg = `${n.sha ? 'メモを更新' : 'メモを追加'}: ${titleOf(content).slice(0, 50)}`;
+      const put = (sha) => api('PUT', contentsUrl(n.path), {
+        message: msg,
+        content: toB64(content),
+        branch: cfg.branch,
+        ...(sha ? { sha } : {}),
+      });
+
+      let res;
+      try {
+        res = await put(n.sha);
+      } catch (e) {
+        if (e.status !== 409 && e.status !== 422) throw e;
+        const cur = await remoteSha(n.path);
+        if (cur && cur !== n.sha &&
+            !confirm('このメモは、別の場所からGitHub上で更新されています。\nいま開いている内容で上書きしますか?')) {
+          toast('保存を取りやめました。');
+          return;
+        }
+        res = await put(cur);
+      }
+      n.sha = res.content.sha;
+      n.saved = content;
+      if (n.draft === content) n.draft = null;
+      persist();
+      toast('保存しました。');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      saving = false;
+      renderAll();
+    }
+  }
+
+  async function deleteCurrent() {
+    const n = current && notes.get(current);
+    if (!n) return;
+    const label = text(n).trim() ? titleOf(text(n)) : '新しいメモ';
+    if (!confirm(`「${label}」を削除しますか?${n.sha ? '\nGitHub上のファイルも削除されます。' : ''}`)) return;
+    try {
+      if (n.sha) {
+        if (!cfg) { toast('GitHub上のメモを削除するには、先に接続を設定してください。'); return; }
+        const del = (sha) => api('DELETE', contentsUrl(n.path), {
+          message: `メモを削除: ${label.slice(0, 50)}`, sha, branch: cfg.branch,
+        });
+        try {
+          await del(n.sha);
+        } catch (e) {
+          if (e.status === 404) { /* すでに無い */ }
+          else if (e.status === 409 || e.status === 422) {
+            const cur = await remoteSha(n.path);
+            if (cur) await del(cur);
+          } else throw e;
+        }
+      }
+      notes.delete(n.path);
+      current = null;
+      ed.value = '';
+      persist();
+      toast('削除しました。');
+      if (isDesktop()) {
+        const first = sortedNotes()[0];
+        if (first) { current = first.path; ed.value = text(first); }
+      } else {
+        document.body.dataset.view = 'list';
+      }
+      renderAll();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ---------- メモの操作 ----------
+  const sortedNotes = () => [...notes.values()].sort((a, b) => base(b.path).localeCompare(base(a.path)));
+
+  function dropIfEmptyNew() {
+    const n = current && notes.get(current);
+    if (n && !n.sha && !text(n).trim()) { notes.delete(current); persist(); }
+  }
+
+  function openNote(path, { focus = false } = {}) {
+    if (current && current !== path) dropIfEmptyNew();
+    current = path;
+    previewing = false;
+    const n = notes.get(path);
+    ed.value = n ? text(n) : '';
+    document.body.dataset.view = 'editor';
+    renderAll();
+    if (focus) ed.focus();
+  }
+
+  function newNote() {
+    const c = current && notes.get(current);
+    if (c && !c.sha && !text(c).trim()) { previewing = false; renderAll(); document.body.dataset.view = 'editor'; ed.focus(); return; }
+    dropIfEmptyNew();
+    const path = join(folderOf(), `${stamp()}.md`);
+    notes.set(path, { path, sha: null, saved: '', draft: null });
+    openNote(path, { focus: true });
+  }
+
+  function backToList() {
+    dropIfEmptyNew();
+    if (current && !notes.has(current)) current = null;
+    document.body.dataset.view = 'list';
+    renderAll();
+  }
+
+  // ---------- Markdown ----------
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  function inline(raw) {
+    const codes = [];
+    let s = esc(raw).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+  }
+
+  function renderListHtml(items) {
+    let html = '';
+    const stack = [];
+    for (const it of items) {
+      while (stack.length && it.indent < stack[stack.length - 1].indent) html += `</li></${stack.pop().tag}>`;
+      const top = stack[stack.length - 1];
+      if (!top || it.indent > top.indent) {
+        const tag = it.ordered ? 'ol' : 'ul';
+        html += `<${tag}>`;
+        stack.push({ indent: it.indent, tag });
+      } else {
+        html += '</li>';
+      }
+      let t = it.text;
+      let box = '';
+      const tm = t.match(/^\[([ xX])\]\s+(.*)$/);
+      if (tm) { box = `<input type="checkbox" disabled${tm[1] === ' ' ? '' : ' checked'}>`; t = tm[2]; }
+      html += `<li${tm ? ' class="task"' : ''}>${box}${inline(t)}`;
+    }
+    while (stack.length) html += `</li></${stack.pop().tag}>`;
+    return html;
+  }
+
+  function renderMarkdown(src) {
+    const lines = src.replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    const blockStart = (l) => /^(#{1,6}\s|```|>\s?|\s*([-*+]|\d+\.)\s+|\s*([-*_])\3{2,}\s*$)/.test(l);
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      let m;
+      if (!line.trim()) { i++; continue; }
+      if (/^```/.test(line)) {
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+        i++;
+        out.push(`<pre><code>${esc(buf.join('\n'))}</code></pre>`);
+        continue;
+      }
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+        out.push(`<h${m[1].length}>${inline(m[2].trim())}</h${m[1].length}>`);
+        i++;
+        continue;
+      }
+      if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+      if (/^>\s?/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''));
+        out.push(`<blockquote>${renderMarkdown(buf.join('\n'))}</blockquote>`);
+        continue;
+      }
+      if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && (m = lines[i].match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/))) {
+          items.push({ indent: m[1].replace(/\t/g, '    ').length, ordered: /\d/.test(m[2]), text: m[3] });
+          i++;
+        }
+        out.push(renderListHtml(items));
+        continue;
+      }
+      const buf = [];
+      while (i < lines.length && lines[i].trim() && !(buf.length && blockStart(lines[i]))) buf.push(lines[i++]);
+      out.push(`<p>${buf.map(inline).join('<br>')}</p>`);
+    }
+    return out.join('\n');
+  }
+
+  // ---------- 描画 ----------
+  function renderList() {
+    const q = $('#search').value.trim().toLowerCase();
+    const ul = $('#list');
+    ul.textContent = '';
+    let shown = 0;
+    for (const n of sortedNotes()) {
+      const t = text(n);
+      if (q && !t.toLowerCase().includes(q)) continue;
+      shown++;
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'note-item' + (n.path === current ? ' active' : '');
+      b.dataset.path = n.path;
+      if (n.path === current) b.setAttribute('aria-current', 'true');
+      const h = document.createElement('span');
+      h.className = 'note-title';
+      h.textContent = t.trim() ? titleOf(t) : '新しいメモ';
+      const s = document.createElement('span');
+      s.className = 'note-snippet';
+      s.textContent = snippetOf(t);
+      const m = document.createElement('span');
+      m.className = 'note-meta';
+      m.textContent = dateOf(n.path);
+      if (isDirty(n)) {
+        const d = document.createElement('span');
+        d.className = 'dirty';
+        d.textContent = '未保存';
+        m.append(d);
+      }
+      b.append(h, s, m);
+      li.append(b);
+      ul.append(li);
+    }
+    if (!shown) {
+      const li = document.createElement('li');
+      li.className = 'list-empty';
+      li.textContent = q ? '見つかりませんでした。' : 'メモはまだありません。';
+      ul.append(li);
+    }
+  }
+
+  function updateSaveState() {
+    const n = current && notes.get(current);
+    const el = $('#saveState');
+    const btn = $('#btnSave');
+    if (!n) { el.textContent = ''; el.dataset.state = ''; btn.disabled = true; return; }
+    const dirty = isDirty(n);
+    btn.disabled = !dirty || saving;
+    el.dataset.state = saving ? 'saving' : dirty ? 'dirty' : n.sha ? 'saved' : 'idle';
+    el.textContent = saving ? '保存しています…' : dirty ? '未保存の変更があります' : n.sha ? 'GitHubに保存済み' : '';
+  }
+
+  function renderPane() {
+    const n = current && notes.get(current);
+    $('#empty').hidden = !!n;
+    ed.hidden = !n || previewing;
+    pv.hidden = !n || !previewing;
+    $('#btnPreview').textContent = previewing ? '編集' : 'プレビュー';
+    $('#btnPreview').disabled = !n;
+    $('#btnDelete').disabled = !n;
+    if (n && previewing) {
+      pv.innerHTML = text(n).trim() ? renderMarkdown(text(n)) : '<p class="muted">まだ何も書かれていません。</p>';
+    }
+    if (!n) {
+      const act = $('#emptyAction');
+      if (!cfg) {
+        $('#emptyTitle').textContent = 'GitHubにつなぎましょう';
+        $('#emptyBody').textContent = 'メモは、リポジトリの中のMarkdownファイルとして保存されます。';
+        act.textContent = '接続を設定する';
+        act.dataset.action = 'settings';
+        act.hidden = false;
+      } else if (!notes.size) {
+        $('#emptyTitle').textContent = '最初のメモを書きましょう';
+        $('#emptyBody').textContent = '「新規メモ」を押すと、新しいメモが開きます。';
+        act.textContent = '新規メモ';
+        act.dataset.action = 'new';
+        act.hidden = false;
+      } else {
+        $('#emptyTitle').textContent = 'メモを選んでください';
+        $('#emptyBody').textContent = '左の一覧から開くか、新しいメモを作れます。';
+        act.hidden = true;
+      }
+    }
+    updateSaveState();
+  }
+
+  function renderStatus() {
+    const dot = $('#dot');
+    if (!cfg) {
+      dot.dataset.state = 'off';
+      $('#repoName').textContent = 'GitHubに未接続';
+      $('#syncText').textContent = '設定から接続できます';
+    } else {
+      dot.dataset.state = syncing ? 'busy' : syncError ? 'error' : lastSync ? 'ok' : 'off';
+      $('#repoName').textContent = `${cfg.owner}/${cfg.repo}`;
+      $('#syncText').textContent = syncing ? '同期しています…'
+        : syncError ? '同期できませんでした'
+        : lastSync ? `${new Date(lastSync).toLocaleTimeString('ja-JP', { hour: 'numeric', minute: '2-digit' })}に同期しました`
+        : 'まだ同期していません';
+    }
+    $('#btnSync').classList.toggle('spin', syncing);
+    $('#btnSync').disabled = !cfg;
+  }
+
+  function renderAll() { renderList(); renderPane(); renderStatus(); }
+
+  let toastTimer;
+  function toast(msg, kind = 'info') {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.dataset.kind = kind;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, kind === 'error' ? 7000 : 3200);
+  }
+
+  // ---------- 設定 ----------
+  function openSettings() {
+    const f = $('#cfgForm').elements;
+    f.owner.value = cfg?.owner || '';
+    f.repo.value = cfg?.repo || '';
+    f.branch.value = cfg?.branch || '';
+    f.folder.value = cfg?.folder || '';
+    f.token.value = '';
+    f.token.placeholder = cfg ? '変更しない場合は空欄のまま' : 'github_pat_...';
+    $('#cfgError').textContent = '';
+    $('#btnDisconnect').hidden = !cfg;
+    dlg.showModal();
+  }
+
+  function resetSynced() {
+    for (const [p, n] of [...notes]) {
+      if (!n.sha) continue;
+      if (isDirty(n)) { n.sha = null; n.saved = ''; } else notes.delete(p);
+    }
+    if (current && !notes.has(current)) { current = null; ed.value = ''; }
+    persist();
+  }
+
+  async function submitSettings(e) {
+    e.preventDefault();
+    const f = $('#cfgForm').elements;
+    const err = $('#cfgError');
+    const btn = $('#btnCfgSave');
+    let owner = f.owner.value.trim();
+    let repo = f.repo.value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
+    if (repo.includes('/')) { const parts = repo.split('/'); owner = parts[0]; repo = parts[1]; }
+    const token = f.token.value.trim() || cfg?.token || '';
+    const folder = (f.folder.value.trim().replace(/^\/+|\/+$/g, '')) || 'notes';
+    let branch = f.branch.value.trim();
+
+    if (!owner || !repo) { err.textContent = 'ユーザー名とリポジトリ名を入力してください。'; return; }
+    if (!token) { err.textContent = 'アクセストークンを入力してください。'; return; }
+
+    btn.disabled = true;
+    err.textContent = '接続を確認しています…';
+    try {
+      const tmp = { owner, repo, token, branch: '', folder };
+      const info = await request(tmp, 'GET', `/repos/${enc(owner)}/${enc(repo)}`);
+      if (info.permissions && info.permissions.push === false) {
+        throw new Error('このトークンには、リポジトリへの書き込み権限がありません。「Contents」を「Read and write」にしてください。');
+      }
+      branch = branch || info.default_branch;
+      try {
+        await request(tmp, 'GET', `/repos/${enc(owner)}/${enc(repo)}/branches/${enc(branch)}`);
+      } catch (be) {
+        if (be.status === 404) throw new Error(`ブランチ「${branch}」が見つかりません。空のリポジトリの場合は、READMEなどを1つ作ってからお試しください。`);
+        throw be;
+      }
+      const changed = !cfg || cfg.owner !== owner || cfg.repo !== repo || cfg.branch !== branch || cfg.folder !== folder;
+      cfg = { owner, repo, branch, folder, token };
+      writeLS(KEY.cfg, cfg);
+      if (changed) resetSynced();
+      dlg.close();
+      toast('GitHubに接続しました。');
+      renderAll();
+      pull();
+    } catch (ex) {
+      err.textContent = ex.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function disconnect() {
+    if (!confirm('この端末に保存されているトークンと、同期済みメモのコピーを削除します。\nGitHub上のメモは消えません。未保存の変更は失われます。\n接続を解除しますか?')) return;
+    cfg = null;
+    try { localStorage.removeItem(KEY.cfg); } catch { /* 無視 */ }
+    notes.clear();
+    current = null;
+    lastSync = null;
+    ed.value = '';
+    persist();
+    dlg.close();
+    document.body.dataset.view = 'list';
+    renderAll();
+  }
+
+  // ---------- イベント ----------
+  $('#btnNew').addEventListener('click', newNote);
+  $('#btnSave').addEventListener('click', saveCurrent);
+  $('#btnDelete').addEventListener('click', deleteCurrent);
+  $('#btnBack').addEventListener('click', backToList);
+  $('#btnSync').addEventListener('click', () => pull());
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnCfgCancel').addEventListener('click', () => dlg.close());
+  $('#btnDisconnect').addEventListener('click', disconnect);
+  $('#cfgForm').addEventListener('submit', submitSettings);
+  $('#emptyAction').addEventListener('click', (e) => {
+    if (e.currentTarget.dataset.action === 'settings') openSettings(); else newNote();
+  });
+  $('#btnPreview').addEventListener('click', () => {
+    previewing = !previewing;
+    renderPane();
+    if (!previewing) ed.focus();
+  });
+  $('#search').addEventListener('input', renderList);
+  $('#list').addEventListener('click', (e) => {
+    const b = e.target.closest('.note-item');
+    if (b) openNote(b.dataset.path);
+  });
+
+  const refreshListSoon = debounce(renderList, 120);
+  ed.addEventListener('input', () => {
+    const n = current && notes.get(current);
+    if (!n) return;
+    n.draft = ed.value === n.saved ? null : ed.value;
+    updateSaveState();
+    refreshListSoon();
+    persistSoon();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveCurrent();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persist();
+    else if (cfg && !syncing && (!lastSync || Date.now() - lastSync > 120000)) pull({ quiet: true });
+  });
+  window.addEventListener('pagehide', persist);
+
+  // ---------- 起動 ----------
+  loadLocal();
+  const first = sortedNotes()[0];
+  if (first && isDesktop()) { current = first.path; ed.value = text(first); }
+  renderAll();
+  if (cfg) pull({ quiet: true });
+})();
+</script>
+</body>
+</html>
